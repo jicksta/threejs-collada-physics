@@ -26,8 +26,11 @@
 
   var renderer = createRenderer();
 
-//  loadCollada("box.dae", render);
-  loadCollada("models/many-meshes.dae", render);
+//  loadCollada("models/box.dae", render);
+//  loadCollada("models/box-shaped.dae", 0.02, render);
+//  loadCollada("models/many-meshes.dae", 0.02 render);
+//  loadCollada("models/box.dae", 0.02, render);
+  loadCollada("models/building.dae", 0.002, render);
 
   function render() {
     requestAnimationFrame(render);
@@ -81,7 +84,7 @@
     return renderer;
   }
 
-  function loadCollada(file, callback) {
+  function loadCollada(file, scale, callback) {
     var loader = new THREE.ColladaLoader();
     loader.options.convertUpAxis = true;
     loader.load(file, function(collada) {
@@ -90,7 +93,7 @@
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
           var mesh = new Physijs.CustomMesh(obj.geometry, material, 0);
-          mesh.scale.x = mesh.scale.y = mesh.scale.z = 0.02;
+          mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
           mesh.updateMatrix();
           scene.add(mesh);
         }
