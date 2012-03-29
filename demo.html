@@ -1,0 +1,83 @@
+<html>
+<head>
+  <script src="./lib/Three.js"></script>
+  <script src="./lib/Stats.js"></script>
+  <script src="./lib/physi.js"></script>
+  <script src="./lib/physijs_worker.js"></script>
+  <script>
+    Physijs.scripts.worker = 'lib/physijs_worker.js';
+    Physijs.scripts.ammo = 'ammo.js';
+  </script>
+</head>
+<body>
+<div id="container"/>
+<script>
+  var WIDTH = document.body.clientWidth, HEIGHT = document.body.clientHeight;
+
+  var domElement = document.getElementById("container");
+
+  var scene = createScene();
+  var camera = createCamera();
+//  var firstPersonControls = createControls();
+  var renderer = createRenderer();
+
+  setupLighting();
+  setupPhysics();
+
+  render();
+
+  function render() {
+    requestAnimationFrame(render);
+    scene.simulate(undefined, 2)
+    renderer.render(scene, camera);
+  }
+
+  function createScene() {
+    return new Physijs.Scene;
+  }
+
+  function createCamera() {
+    var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 1, 1000);
+    camera.position.set(2, 0, 2);
+    camera.lookAt(scene.position);
+    scene.add(camera);
+    return camera;
+  }
+
+  function createControls() {
+    var controls = new THREE.FirstPersonControls(camera, document);
+    controls.movementSpeed = 1;
+    controls.lookSpeed = 0.05;
+    return controls;
+  }
+
+  function setupPhysics() {
+    scene.setGravity({x: 0, y: -10, z: 0});
+    createCube();
+  }
+
+  function setupLighting() {
+    var light = new THREE.PointLight(0x0020BB, 10, 50);
+    light.position.set(5, 5, 5);
+    scene.add(light);
+  }
+
+  function createCube() {
+    var cube = new Physijs.BoxMesh(
+        new THREE.CubeGeometry(1, 1, 1),
+        new THREE.MeshLambertMaterial({color: 0xFFFFFF})
+    );
+    cube.position.y = 2;
+    scene.add(cube);
+  }
+
+  function createRenderer() {
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(WIDTH, HEIGHT);
+    domElement.appendChild(renderer.domElement);
+    return renderer;
+  }
+
+</script>
+</body>
+</html>
