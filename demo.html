@@ -26,7 +26,7 @@
 
   var renderer = createRenderer();
 
-//  loadCollada("models/box.dae", render);
+//  loadCollada("models/box.dae", 0.02, render);
 //  loadCollada("models/box-shaped.dae", 0.02, render);
 //  loadCollada("models/many-meshes.dae", 0.02 render);
 //  loadCollada("models/box.dae", 0.02, render);
@@ -73,7 +73,7 @@
         new THREE.CubeGeometry(1, 1, 1),
         new THREE.MeshLambertMaterial({color: 0xFFFFFF})
     );
-    cube.position.y = 1;
+    cube.position.y = 1.5;
     scene.add(cube);
   }
 
@@ -92,8 +92,14 @@
       recursivelyImportMeshes(collada.scene);
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
-          var mesh = new Physijs.CustomMesh(obj.geometry, material, 0);
-          mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
+          var geometry = obj.geometry;
+          obj.geometry.vertices.forEach(function (vert) {
+            vert.position.x *= scale;
+            vert.position.y *= scale;
+            vert.position.z *= scale;
+          });
+          var mesh = new Physijs.CustomMesh(geometry, material, 0);
+//          mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
           mesh.updateMatrix();
           scene.add(mesh);
         }
