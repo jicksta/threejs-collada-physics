@@ -20,10 +20,13 @@
   var scene = createScene();
   var camera = createCamera();
   var firstPersonControls = createControls();
-  var renderer = createRenderer();
 
   setupLighting();
   setupPhysics();
+
+  var renderer = createRenderer();
+
+  loadCollada("box.dae");
 
   window.onload = render;
 
@@ -40,14 +43,14 @@
 
   function createCamera() {
     var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 1, 20000);
-    camera.position.set(-2, 0, 0);
+    camera.position.set(-4, 1, 0);
     scene.add(camera);
     return camera;
   }
 
   function createControls() {
     var controls = new THREE.FirstPersonControls(camera);
-    controls.movementSpeed = 10;
+    controls.movementSpeed = 50;
     controls.lookSpeed = 0.125;
     return controls;
   }
@@ -77,6 +80,16 @@
     renderer.setSize(WIDTH, HEIGHT);
     domElement.appendChild(renderer.domElement);
     return renderer;
+  }
+
+  function loadCollada(file) {
+    var loader = new THREE.ColladaLoader();
+    loader.options.convertUpAxis = true;
+    loader.load(file, function(loadedObject) {
+      var loadedScene = loadedObject.scene;
+      loadedScene.scale.x = loadedScene.scale.y = loadedScene.scale.z = 0.02;
+      scene.add(loadedObject.scene);
+    });
   }
 
 </script>
