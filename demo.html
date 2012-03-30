@@ -99,8 +99,7 @@
 
 //  loadCollada("models/box.dae", 0.02, render);
 //  loadCollada("models/box-shaped.dae", 0.02, render);
-//  loadCollada("models/many-meshes.dae", 0.02 render);
-//  loadCollada("models/box.dae", 0.02, render);
+//  loadCollada("models/many-meshes.dae", 0.02, render);
   loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
   // This creates a cube and drops it onto the collada-loaded meshes.
@@ -197,7 +196,7 @@
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
           // First, prepare the Mesh for ThreeJS, ignoring the meshes from the Collada loader.
-          obj.geometry.vertices.forEach(function (vert) {
+          obj.geometry.vertices.forEach(function(vert) {
             vert.position.x *= scale;
             vert.position.y *= scale;
             vert.position.z *= scale;
