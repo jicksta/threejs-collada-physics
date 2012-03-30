@@ -181,7 +181,7 @@
   }
 
   function createRenderer() {
-    renderer = new THREE.WebGLRenderer();
+    renderer = new THREE.WebGLRenderer({antialias: true});
     renderer.setSize(WIDTH, HEIGHT);
     domElement.appendChild(renderer.domElement);
     return renderer;
