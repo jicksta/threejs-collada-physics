@@ -2,12 +2,6 @@
 <head>
   <script src="./lib/Three.js"></script>
   <script src="./lib/Stats.js"></script>
-  <script src="./lib/physi.js"></script>
-  <script src="./lib/physijs_worker.js"></script>
-  <script>
-    Physijs.scripts.worker = 'lib/physijs_worker.js';
-    Physijs.scripts.ammo = 'ammo.js';
-  </script>
 </head>
 <body>
 <div id="container"/>
@@ -34,13 +28,13 @@
 
   function render() {
     requestAnimationFrame(render);
-    scene.simulate(undefined, 2);
+    // TODO: Advance time
     firstPersonControls.update(clock.getDelta());
     renderer.render(scene, camera);
   }
 
   function createScene() {
-    return new Physijs.Scene;
+    return new THREE.Scene;
   }
 
   function createCamera() {
@@ -52,13 +46,13 @@
 
   function createControls() {
     var controls = new THREE.FirstPersonControls(camera);
-    controls.movementSpeed = 50;
+    controls.movementSpeed = 30;
     controls.lookSpeed = 0.125;
     return controls;
   }
 
   function setupPhysics() {
-    scene.setGravity({x: 0, y: -10, z: 0});
+    // TODO: Setup gravity
     createCube();
   }
 
@@ -69,7 +63,7 @@
   }
 
   function createCube() {
-    var cube = new Physijs.BoxMesh(
+    var cube = new THREE.Mesh(
         new THREE.CubeGeometry(1, 1, 1),
         new THREE.MeshLambertMaterial({color: 0xFFFFFF})
     );
@@ -90,6 +84,7 @@
     loader.load(file, function(collada) {
       var material = new THREE.MeshLambertMaterial({color: "0x0000FF"});
       recursivelyImportMeshes(collada.scene);
+
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
           var geometry = obj.geometry;
@@ -98,9 +93,8 @@
             vert.position.y *= scale;
             vert.position.z *= scale;
           });
-          var mesh = new Physijs.CustomMesh(geometry, material, 0);
-//          mesh.scale.x = mesh.scale.y = mesh.scale.z = scale;
-          mesh.updateMatrix();
+          var mesh = new THREE.Mesh(geometry, material);
+          // TODO: Set mass
           scene.add(mesh);
         }
         obj.children.forEach(recursivelyImportMeshes);
