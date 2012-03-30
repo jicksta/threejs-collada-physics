@@ -97,13 +97,16 @@
 
   var renderer = createRenderer();
 
-//  loadCollada("models/box.dae", 0.02, render);
-//  loadCollada("models/box-shaped.dae", 0.02, render);
-//  loadCollada("models/many-meshes.dae", 0.02, render);
+  //// Choose one of these to uncomment. Each one is a different test. Note: the scale is different between them.
+  // loadCollada("models/box.dae", 0.02, render);
+  // loadCollada("models/box-shaped.dae", 0.02, render);
+  // loadCollada("models/many-meshes.dae", 0.02, render);
   loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
-  // This creates a cube and drops it onto the collada-loaded meshes.
-  createCubeExperiment();
+  // Drop cubes onto the collada meshes
+  for(var i = 0; i < 25; i++) {
+    setTimeout(createCubeExperiment, 1000 * i);
+  }
 
   function render() {
     requestAnimationFrame(render);
@@ -116,7 +119,7 @@
 
   // This is useful for passing the returned function as a callback that will start the render loop at a certain number
   // of milliseconds in the future. This might be useful or even necessary if you depend on physics immediately.
-  // Browsers tend to be a briefly laggy immediately after page load while it JITs all the JavaScript. Collision
+  // Browsers tend to be briefly laggy immediately after page load while it JITs all the JavaScript. Collision
   // detection may fail during this laggy period if the lag lasts longer than the time it takes the object to fall/move
   // through another.
   function delayRenderFn(ms) {
@@ -146,9 +149,9 @@
   function setupPhysics() {
     physics = jiglib.PhysicsSystem.getInstance();
     physics.rigidBodies = [];
-    physics.setCollisionSystem(true); // CollisionSystemGrid
-    physics.setSolverType("ACCUMULATED");
-    physics.setGravity(new Vector3D( 0, -9.8, 0, 0 ));
+    physics.setCollisionSystem(true);
+    physics.setSolverType("FAST");
+    physics.setGravity(new Vector3D(0, -9.8, 0, 0));
     return physics;
   }
 
@@ -166,7 +169,7 @@
         new THREE.CubeGeometry(width, height, depth),
         new THREE.MeshLambertMaterial({color: 0xFFFFFF})
     );
-    cubeMesh.position.y = 1.5;
+    cubeMesh.position.y = 10;
     cubeMesh.matrixAutoUpdate = false;
     scene.add(cubeMesh);
 
@@ -190,27 +193,22 @@
     var loader = new THREE.ColladaLoader();
     loader.options.convertUpAxis = true;
     loader.load(file, function(collada) {
-      var material = new THREE.MeshLambertMaterial({color: "0x0000FF"});
-      recursivelyImportMeshes(collada.scene);
+      collada.scene.scale.set(scale, scale, scale);
+      collada.scene.updateMatrix();
+      scene.add(collada.scene);
 
+      recursivelyImportMeshes(collada.scene);
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
-          // First, prepare the Mesh for ThreeJS, ignoring the meshes from the Collada loader.
-          obj.geometry.vertices.forEach(function(vert) {
-            vert.position.x *= scale;
-            vert.position.y *= scale;
-            vert.position.z *= scale;
-          });
-          var mesh = new THREE.Mesh(obj.geometry, material);
-          scene.add(mesh);
-
-          // Next, create jiglib.JTriangleMeshes for every face in the Collada file.
-
           var skin = {vertices: [], indices: []};
-          mesh.geometry.vertices.forEach(function(vert) {
-            skin.vertices.push(new Vector3D(vert.position.x, vert.position.y, vert.position.z, 0));
+
+          obj.geometry.vertices.forEach(function(meshVertex) {
+            // Have to find the absolute position of each vertex irrespective of their parents' transformations.
+            var worldVertex =  obj.matrixWorld.multiplyVector3(meshVertex.position.clone());
+            var physicalVert = new Vector3D(worldVertex.x, worldVertex.y, worldVertex.z, 0).scaleBy(scale);
+            skin.vertices.push(physicalVert);
           });
-          mesh.geometry.faces.forEach(function(face) {
+          obj.geometry.faces.forEach(function(face) {
             if(face instanceof THREE.Face3) {
               skin.indices.push({i0: face.a, i1: face.b, i2: face.c});
             } else if(face instanceof THREE.Face4) {
@@ -220,12 +218,12 @@
             }
           });
 
-          var position = new Vector3D(mesh.position.x, mesh.position.y, mesh.position.z, 0);
+          var position = new Vector3D(obj.position.x, obj.position.y, obj.position.z, 0);
           var rotation = new jiglib.Matrix3D;
-          mesh.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
-          mesh.rigidBody.set_friction(1);
-          physics.addBody(mesh.rigidBody);
-          physics.rigidBodies.push({body: mesh.rigidBody, mesh: mesh});
+          obj.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
+          obj.rigidBody.set_friction(1);
+          physics.addBody(obj.rigidBody);
+          physics.rigidBodies.push({body: obj.rigidBody, mesh: obj});
         }
         obj.children.forEach(recursivelyImportMeshes);
       }
