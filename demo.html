@@ -6,20 +6,18 @@
   <script type="text/javascript" src="lib/jiglibjs2/geom/glMatrix.js"></script>
 
 		<script type="text/javascript" src="lib/jiglibjs2/jiglib.js"></script>
-
 		<script type="text/javascript" src="lib/jiglibjs2/geom/Vector3D.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/geom/Matrix3D.js"></script>
-
 		<script type="text/javascript" src="lib/jiglibjs2/math/JMatrix3D.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/math/JMath3D.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/math/JNumber3D.js"></script>
-
 		<script type="text/javascript" src="lib/jiglibjs2/cof/JConfig.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/CollOutData.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/ContactData.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/PlaneData.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/EdgeData.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/TerrainData.js"></script>
+    <script type="text/javascript" src="lib/jiglibjs2/geometry/JAABox.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/OctreeCell.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/CollOutBodyData.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/data/TriangleVertexIndices.js"></script>
@@ -29,6 +27,8 @@
 		<script type="text/javascript" src="lib/jiglibjs2/physics/constraint/JConstraintWorldPoint.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/physics/constraint/JConstraintPoint.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/physics/MaterialProperties.js"></script>
+    <script type="text/javascript" src="lib/jiglibjs2/geometry/JTriangle.js"></script>
+		<script type="text/javascript" src="lib/jiglibjs2/geometry/JSegment.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/collision/CollPointInfo.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/collision/CollisionInfo.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/collision/CollDetectInfo.js"></script>
@@ -54,9 +54,6 @@
 		<script type="text/javascript" src="lib/jiglibjs2/geometry/JIndexedTriangle.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/geometry/JOctree.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/geometry/JRay.js"></script>
-		<script type="text/javascript" src="lib/jiglibjs2/geometry/JAABox.js"></script>
-		<script type="text/javascript" src="lib/jiglibjs2/geometry/JTriangle.js"></script>
-		<script type="text/javascript" src="lib/jiglibjs2/geometry/JSegment.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/events/JCollisionEvent.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/physics/constraint/JConstraint.js"></script>
 		<script type="text/javascript" src="lib/jiglibjs2/physics/constraint/JConstraintMaxDistance.js"></script>
@@ -104,7 +101,7 @@
 //  loadCollada("models/box-shaped.dae", 0.02, render);
 //  loadCollada("models/many-meshes.dae", 0.02 render);
 //  loadCollada("models/box.dae", 0.02, render);
-  loadCollada("models/building.dae", 0.002, render);
+  loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
   // This creates a cube and drops it onto the collada-loaded meshes.
   createCubeExperiment();
@@ -112,10 +109,21 @@
   function render() {
     requestAnimationFrame(render);
     var timeDelta = clock.getDelta();
+    firstPersonControls.update(timeDelta);
     physics.integrate(timeDelta);
     updatePhysicalMeshes();
-    firstPersonControls.update(timeDelta);
     renderer.render(scene, camera);
+  }
+
+  // This is useful for passing the returned function as a callback that will start the render loop at a certain number
+  // of milliseconds in the future. This might be useful or even necessary if you depend on physics immediately.
+  // Browsers tend to be a briefly laggy immediately after page load while it JITs all the JavaScript. Collision
+  // detection may fail during this laggy period if the lag lasts longer than the time it takes the object to fall/move
+  // through another.
+  function delayRenderFn(ms) {
+    return function() {
+      setTimeout(render, ms);
+    }
   }
 
   function createScene() {
@@ -140,7 +148,7 @@
     physics = jiglib.PhysicsSystem.getInstance();
     physics.rigidBodies = [];
     physics.setCollisionSystem(true); // CollisionSystemGrid
-    physics.setSolverType("FAST"); // Can also be "NORMAL" or "ACCUMULATED"
+    physics.setSolverType("ACCUMULATED");
     physics.setGravity(new Vector3D( 0, -9.8, 0, 0 ));
     return physics;
   }
@@ -165,6 +173,7 @@
 
     var physicalCube = new jiglib.JBox(null, width, height, depth);
     physicalCube.set_mass(1);
+    physicalCube.set_friction(1);
     physicalCube.moveTo(new Vector3D(cubeMesh.position.x, cubeMesh.position.y, cubeMesh.position.z, 0));
 
     physics.addBody(physicalCube);
@@ -187,15 +196,37 @@
 
       function recursivelyImportMeshes(obj) {
         if("geometry" in obj) {
-          var geometry = obj.geometry;
+          // First, prepare the Mesh for ThreeJS, ignoring the meshes from the Collada loader.
           obj.geometry.vertices.forEach(function (vert) {
             vert.position.x *= scale;
             vert.position.y *= scale;
             vert.position.z *= scale;
           });
-          var mesh = new THREE.Mesh(geometry, material);
-          // TODO: Set mass
+          var mesh = new THREE.Mesh(obj.geometry, material);
           scene.add(mesh);
+
+          // Next, create jiglib.JTriangleMeshes for every face in the Collada file.
+
+          var skin = {vertices: [], indices: []};
+          mesh.geometry.vertices.forEach(function(vert) {
+            skin.vertices.push(new Vector3D(vert.position.x, vert.position.y, vert.position.z, 0));
+          });
+          mesh.geometry.faces.forEach(function(face) {
+            if(face instanceof THREE.Face3) {
+              skin.indices.push({i0: face.a, i1: face.b, i2: face.c});
+            } else if(face instanceof THREE.Face4) {
+              // Must convert a four-vertex face into two three-vertex faces.
+              skin.indices.push({i0: face.a, i1: face.b, i2: face.d});
+              skin.indices.push({i0: face.b, i1: face.c, i2: face.d});
+            }
+          });
+
+          var position = new Vector3D(mesh.position.x, mesh.position.y, mesh.position.z, 0);
+          var rotation = new jiglib.Matrix3D;
+          mesh.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
+          mesh.rigidBody.set_friction(1);
+          physics.addBody(mesh.rigidBody);
+          physics.rigidBodies.push({body: mesh.rigidBody, mesh: mesh});
         }
         obj.children.forEach(recursivelyImportMeshes);
       }
