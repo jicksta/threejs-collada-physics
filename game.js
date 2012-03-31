@@ -168,9 +168,10 @@ var activeKeys = {};
 function setupPlayer() {
   // Create the JCapsule that will represent the player in the physics engine.
 
-  var player = new jiglib.JSphere(null, 1);
+  var player = new jiglib.JBox(null, 1, 1, 1.5);
   player.moveTo(new Vector3D(0, 20, 0, 0));
-  player.set_mass(10);
+  player.set_friction(3);
+  player.set_mass(100);
   physics.addBody(player);
 
   document.addEventListener('keydown', function(e) {
@@ -184,22 +185,19 @@ function setupPlayer() {
 }
 
 function moveCamera() {
-
   camera.position.set(player.get_x(), player.get_y(), player.get_z());
   if (39 in activeKeys) { // right
-    camera.rotation.y -= 0.1;
+    camera.rotation.y -= 0.07;
   } else if(37 in activeKeys) { // left
-    camera.rotation.y += 0.1;
-  } else if((38 in activeKeys) || (40 in activeKeys)) { // forward
-    var matrix = new THREE.Matrix4;
-    matrix.extractRotation(camera.matrixWorld);
+    camera.rotation.y += 0.07;
+  } else if((38 in activeKeys) || (40 in activeKeys)) { // forward & back
+    var movingForward = 38 in activeKeys;
+    var movementSpeeds = movingForward ? -4 : 3
 
-    var forwardOrBackward = (38 in activeKeys) ? -1: 1;
-    var direction = new THREE.Vector3(0, 0, forwardOrBackward);
-    matrix.multiplyVector3(direction);
+    var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
+    var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
+    cameraRotation.multiplyVector3(velocityVector);
 
-    player.applyWorldImpulse(new Vector3D(direction.x, direction.y, direction.z, 0), player.get_currentState().position);
-  } else if(40 in activeKeys) { // back
-
+    player.setLineVelocity(new Vector3D(velocityVector.x, velocityVector.y, velocityVector.z, 0));
   }
 }
