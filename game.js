@@ -13,14 +13,9 @@ setupLighting();
 
 var renderer = createRenderer();
 
-//// Choose one of these to uncomment. Each one is a different test. Note: the scale is different between them.
-// loadCollada("models/box.dae", 0.02, render);
-// loadCollada("models/box-shaped.dae", 0.02, render);
-// loadCollada("models/many-meshes.dae", 0.02, render);
 loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
-//Drop cubes onto the collada meshes
-
+// Drop cubes onto the collada meshes
 for (var i = 0; i < 25; i++) {
   setTimeout(createCubeExperiment, 500 * i);
 }
@@ -58,19 +53,6 @@ function setupPhysics() {
   var solver = new Ammo.btSequentialImpulseConstraintSolver();
   var ammoWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
   ammoWorld.setGravity(new Ammo.btVector3(0, -9.8, 0));
-
-
-  var groundShape = new Ammo.btBoxShape(new Ammo.btVector3(25, 1, 25)); // Create block 50x2x50
-  var groundTransform = new Ammo.btTransform();
-  groundTransform.setIdentity();
-  groundTransform.setOrigin(new Ammo.btVector3(0, -1, 0)); // Set initial position
-
-  var groundMass = 0; // Mass of 0 means ground won't move from gravity or collisions
-  var localInertia = new Ammo.btVector3(0, 0, 0);
-  var motionState = new Ammo.btDefaultMotionState(groundTransform);
-  var rbInfo = new Ammo.btRigidBodyConstructionInfo(groundMass, motionState, groundShape, localInertia);
-  var groundAmmo = new Ammo.btRigidBody(rbInfo);
-  ammoWorld.addRigidBody(groundAmmo);
 
   ammoWorld.rigidBodies = [];
 
@@ -131,30 +113,54 @@ function loadCollada(file, scale, callback) {
     recursivelyImportMeshes(collada.scene);
     function recursivelyImportMeshes(obj) {
       if ("geometry" in obj) {
-        var skin = {vertices: [], indices: []};
 
+        var physicalMeshVertices = [];
         obj.geometry.vertices.forEach(function(meshVertex) {
           // Have to find the absolute position of each vertex irrespective of their parents' transformations.
           var worldVertex = obj.matrixWorld.multiplyVector3(meshVertex.position.clone());
-//          var physicalVert = new Vector3D(worldVertex.x, worldVertex.y, worldVertex.z, 0).scaleBy(scale);
-//          skin.vertices.push(physicalVert);
+          var physicalVert = new Ammo.btVector3(worldVertex.x * scale, worldVertex.y * scale, worldVertex.z * scale);
+          physicalMeshVertices.push(physicalVert);
         });
+
+        var triangles = new Ammo.btTriangleMesh;
+
         obj.geometry.faces.forEach(function(face) {
           if (face instanceof THREE.Face3) {
-            skin.indices.push({i0: face.a, i1: face.b, i2: face.c});
+            triangles.addTriangle(
+                physicalMeshVertices[face.a],
+                physicalMeshVertices[face.b],
+                physicalMeshVertices[face.c],
+                true
+            );
           } else if (face instanceof THREE.Face4) {
             // Must convert a four-vertex face into two three-vertex faces.
-            skin.indices.push({i0: face.a, i1: face.b, i2: face.d});
-            skin.indices.push({i0: face.b, i1: face.c, i2: face.d});
+            triangles.addTriangle(
+                physicalMeshVertices[face.a],
+                physicalMeshVertices[face.b],
+                physicalMeshVertices[face.d],
+                true
+            );
+            triangles.addTriangle(
+                physicalMeshVertices[face.b],
+                physicalMeshVertices[face.c],
+                physicalMeshVertices[face.d],
+                true
+            );
           }
         });
 
-//        var position = new Vector3D(obj.position.x, obj.position.y, obj.position.z, 0);
-//        var rotation = new jiglib.Matrix3D;
-//        obj.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
-//        obj.rigidBody.set_friction(1);
-//        physics.addBody(obj.rigidBody);
-//        physics.rigidBodies.push({body: obj.rigidBody, mesh: obj});
+        var shape = new Ammo.btBvhTriangleMeshShape(triangles, true, true);
+        var transform = new Ammo.btTransform();
+        transform.setIdentity();
+        var triangleMesh = new Ammo.btRigidBody(
+            new Ammo.btRigidBodyConstructionInfo(
+                0,
+                new Ammo.btDefaultMotionState(transform),
+                shape,
+                new Ammo.btVector3(0, 0, 0)
+            )
+        );
+        physics.addRigidBody(triangleMesh);
       }
       obj.children.forEach(recursivelyImportMeshes);
     }
@@ -182,21 +188,21 @@ function updatePhysicalMeshes() {
 }
 
 function setupPlayer() {
-  var playerMass = 100;
+  var playerMass = 1;
   var startTransform = new Ammo.btTransform();
   startTransform.setIdentity();
   startTransform.setOrigin(new Ammo.btVector3(0, 10, 0)); // Set initial position
 
   var localInertia = new Ammo.btVector3(0, 0, 0);
 
-  var playerShape = new Ammo.btCapsuleShape(0.75, 1.5);
+  var playerShape = new Ammo.btCapsuleShape(0.9, 0.7);
   playerShape.calculateLocalInertia(playerMass, localInertia);
 
   var motionState = new Ammo.btDefaultMotionState(startTransform);
   var rbInfo = new Ammo.btRigidBodyConstructionInfo(playerMass, motionState, playerShape, localInertia);
   var player = new Ammo.btRigidBody(rbInfo);
   player.setSleepingThresholds(0, 0);
-  player.setAngularFactor(new Ammo.btVector3(0,0,0));
+  player.setAngularFactor(new Ammo.btVector3(0, 0, 0));
   physics.addRigidBody(player);
 
   setupControls();
@@ -231,12 +237,13 @@ function moveCamera() {
     camera.rotation.y += 0.07;
   } else if ((38 in ACTIVE_KEYS) || (40 in ACTIVE_KEYS)) { // forward & back
     var movingForward = 38 in ACTIVE_KEYS;
-    var movementSpeeds = movingForward ? -4 : 3
+    var movementSpeeds = movingForward ? -8 : 4
     var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
 
-    player.setLinearVelocity(new Ammo.btVector3(velocityVector.x, velocityVector.y, velocityVector.z));
+    var yLinearVelocity = player.getLinearVelocity().y();
+    player.setLinearVelocity(new Ammo.btVector3(velocityVector.x, yLinearVelocity, velocityVector.z));
     // TODO: Set the rotation of the capsule from the camera rotation?
   }
 }
