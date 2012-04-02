@@ -1,6 +1,8 @@
-This is a basic demo showing how to integrate a [ThreeJS](https://github.com/mrdoob/three.js/) WebGL scene loaded from a [Collada](http://en.wikipedia.org/wiki/COLLADA) (.dae) file with the [jiglibjs2](https://github.com/bartdeboer/JigLibJS2) physics engine. The physics engine is used for collision detection and falling physics. The goal of this project is to create an efficient first-person 3D environment the user can walk around in.
+This is a basic demo showing how to integrate a [ThreeJS](https://github.com/mrdoob/three.js/) WebGL scene loaded from a [Collada](http://en.wikipedia.org/wiki/COLLADA) (.dae) file with the [Ammo.js](https://github.com/kripken/ammo.js) physics engine. The physics engine is used for collision detection and falling physics. The goal of this project is to create an efficient first-person 3D environment the user can walk around in.
 
-There is also a branch showing how to do this with [Ammo.js](https://github.com/kripken/ammo.js/) using [Physijs](https://github.com/chandlerprall/Physijs) located [here](https://github.com/jicksta/threejs-collada-physics/tree/physijs). At the moment the Physijs branch has no-clipping player movement.
+There is also a branch showing how to do this with [jiglibjs2](https://github.com/bartdeboer/JigLibJS2) [here](https://github.com/jicksta/threejs-collada-physics/tree/jiglibjs2) and one using [Physijs](https://github.com/chandlerprall/Physijs) located [here](https://github.com/jicksta/threejs-collada-physics/tree/physijs). At the moment the Physijs branch has no-clipping player movement.
+
+Don't forget to do `git submodule update --init` to initialize the submodule if you clone this branch.
 
 The Collada files were exported from Google Sketchup. The original .skp files are located in `models/sketchup`. Note: At
 the moment this importer does not support .dae files exported from a Sketchup document that has groups. You must explode

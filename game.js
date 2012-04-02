@@ -8,7 +8,6 @@ var scene = new THREE.Scene;
 
 var camera = createCamera();
 var physics = setupPhysics();
-//var firstPersonControls = createThreeJSFirstPersonControls();
 var player = setupPlayer();
 
 setupLighting();
@@ -21,16 +20,15 @@ var renderer = createRenderer();
 // loadCollada("models/many-meshes.dae", 0.02, render);
 loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
-// Drop cubes onto the collada meshes
+//Drop cubes onto the collada meshes
+
 for (var i = 0; i < 25; i++) {
-  setTimeout(createCubeExperiment, 1000 * i);
+  setTimeout(createCubeExperiment, 500 * i);
 }
 
 function render() {
   requestAnimationFrame(render);
-  var timeDelta = clock.getDelta();
-  physics.integrate(timeDelta);
-//  firstPersonControls.update(timeDelta);
+  physics.stepSimulation(1 / 60, 5);
   updatePhysicalMeshes();
   moveCamera();
   renderer.render(scene, camera);
@@ -49,18 +47,36 @@ function delayRenderFn(ms) {
 
 function createCamera() {
   var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 1, 20000);
-  camera.position.set(-4, 1, 0);
+  camera.position.set(-10, 1, 0);
+  camera.rotation.y = -1.5;
   scene.add(camera);
   return camera;
 }
 
 function setupPhysics() {
-  physics = jiglib.PhysicsSystem.getInstance();
-  physics.rigidBodies = [];
-  physics.setCollisionSystem(true);
-  physics.setSolverType("FAST");
-  physics.setGravity(new Vector3D(0, -9.8, 0, 0));
-  return physics;
+  var collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
+  var dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration);
+  var overlappingPairCache = new Ammo.btDbvtBroadphase();
+  var solver = new Ammo.btSequentialImpulseConstraintSolver();
+  var ammoWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
+  ammoWorld.setGravity(new Ammo.btVector3(0, -9.8, 0));
+
+
+  var groundShape = new Ammo.btBoxShape(new Ammo.btVector3(25, 0, 25)); // Create block 50x2x50
+  var groundTransform = new Ammo.btTransform();
+  groundTransform.setIdentity();
+  groundTransform.setOrigin(new Ammo.btVector3(0, -1, 0)); // Set initial position
+
+  var groundMass = 0; // Mass of 0 means ground won't move from gravity or collisions
+  var localInertia = new Ammo.btVector3(0, 0, 0);
+  var motionState = new Ammo.btDefaultMotionState(groundTransform);
+  var rbInfo = new Ammo.btRigidBodyConstructionInfo(groundMass, motionState, groundShape, localInertia);
+  var groundAmmo = new Ammo.btRigidBody(rbInfo);
+  ammoWorld.addRigidBody(groundAmmo);
+
+  ammoWorld.rigidBodies = [];
+
+  return ammoWorld;
 }
 
 function setupLighting() {
@@ -71,23 +87,33 @@ function setupLighting() {
 
 function createCubeExperiment() {
   var width = 1, height = 1, depth = 1;
+  var mass = width * height * depth;
   var cubeMesh, cubePhysical;
 
   cubeMesh = new THREE.Mesh(
       new THREE.CubeGeometry(width, height, depth),
       new THREE.MeshLambertMaterial({color: 0xFFFFFF})
   );
-  cubeMesh.position.y = 10;
-  cubeMesh.matrixAutoUpdate = false;
+  cubeMesh.useQuaternion = true;
   scene.add(cubeMesh);
 
-  var physicalCube = new jiglib.JBox(null, width, height, depth);
-  physicalCube.set_mass(1);
-  physicalCube.set_friction(1);
-  physicalCube.moveTo(new Vector3D(cubeMesh.position.x, cubeMesh.position.y, cubeMesh.position.z, 0));
 
-  physics.addBody(physicalCube);
-  physics.rigidBodies.push({body: physicalCube, mesh: cubeMesh});
+  var startTransform = new Ammo.btTransform();
+  startTransform.setIdentity();
+  startTransform.setOrigin(new Ammo.btVector3(0, 20, 0)); // Set initial position
+
+  var localInertia = new Ammo.btVector3(0, 0, 0);
+
+  var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));
+  boxShape.calculateLocalInertia(mass, localInertia);
+
+  var motionState = new Ammo.btDefaultMotionState(startTransform);
+  var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, boxShape, localInertia);
+  cubePhysical = new Ammo.btRigidBody(rbInfo);
+  physics.addRigidBody(cubePhysical);
+
+  cubePhysical.mesh = cubeMesh;
+  physics.rigidBodies.push(cubePhysical);
 }
 
 function createRenderer() {
@@ -113,8 +139,8 @@ function loadCollada(file, scale, callback) {
         obj.geometry.vertices.forEach(function(meshVertex) {
           // Have to find the absolute position of each vertex irrespective of their parents' transformations.
           var worldVertex = obj.matrixWorld.multiplyVector3(meshVertex.position.clone());
-          var physicalVert = new Vector3D(worldVertex.x, worldVertex.y, worldVertex.z, 0).scaleBy(scale);
-          skin.vertices.push(physicalVert);
+//          var physicalVert = new Vector3D(worldVertex.x, worldVertex.y, worldVertex.z, 0).scaleBy(scale);
+//          skin.vertices.push(physicalVert);
         });
         obj.geometry.faces.forEach(function(face) {
           if (face instanceof THREE.Face3) {
@@ -126,12 +152,12 @@ function loadCollada(file, scale, callback) {
           }
         });
 
-        var position = new Vector3D(obj.position.x, obj.position.y, obj.position.z, 0);
-        var rotation = new jiglib.Matrix3D;
-        obj.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
-        obj.rigidBody.set_friction(1);
-        physics.addBody(obj.rigidBody);
-        physics.rigidBodies.push({body: obj.rigidBody, mesh: obj});
+//        var position = new Vector3D(obj.position.x, obj.position.y, obj.position.z, 0);
+//        var rotation = new jiglib.Matrix3D;
+//        obj.rigidBody = new jiglib.JTriangleMesh(skin, position, rotation, 200, 5);
+//        obj.rigidBody.set_friction(1);
+//        physics.addBody(obj.rigidBody);
+//        physics.rigidBodies.push({body: obj.rigidBody, mesh: obj});
       }
       obj.children.forEach(recursivelyImportMeshes);
     }
@@ -141,26 +167,23 @@ function loadCollada(file, scale, callback) {
 }
 
 function updatePhysicalMeshes() {
-  physics.rigidBodies.forEach(function(obj) {
-    var currentState = obj.body.get_currentState();
-    var currentPosition = currentState.position;
-    var currentOrientation = currentState.orientation.get_rawData();
+  physics.rigidBodies.forEach(function(rigidBody) {
+    var origin, rotation, transform = new Ammo.btTransform();
+    rigidBody.getMotionState().getWorldTransform(transform); // Retrieve box position & rotation from Ammo
 
-    var transformation = new THREE.Matrix4;
-    transformation.setTranslation(currentPosition.x, currentPosition.y, currentPosition.z);
-    var rotation = THREE.Matrix4.prototype.set.apply(new THREE.Matrix4, currentOrientation);
-    transformation.multiplySelf(rotation);
+    // Update position
+    origin = transform.getOrigin();
+    rigidBody.mesh.position.x = origin.x();
+    rigidBody.mesh.position.y = origin.y();
+    rigidBody.mesh.position.z = origin.z();
 
-    obj.mesh.matrix = transformation;
-    obj.mesh.matrixWorldNeedsUpdate = true;
+    // Update rotation
+    rotation = transform.getRotation();
+    rigidBody.mesh.quaternion.x = rotation.x();
+    rigidBody.mesh.quaternion.y = rotation.y();
+    rigidBody.mesh.quaternion.z = rotation.z();
+    rigidBody.mesh.quaternion.w = rotation.w();
   });
-}
-
-function createThreeJSFirstPersonControls() {
-  var controls = new THREE.FirstPersonControls(camera);
-  controls.movementSpeed = 30;
-  controls.lookSpeed = 0.125;
-  return controls;
 }
 
 var activeKeys = {};
@@ -168,11 +191,11 @@ var activeKeys = {};
 function setupPlayer() {
   // Create the JCapsule that will represent the player in the physics engine.
 
-  var player = new jiglib.JBox(null, 1, 1, 1.5);
-  player.moveTo(new Vector3D(0, 20, 0, 0));
-  player.set_friction(3);
-  player.set_mass(100);
-  physics.addBody(player);
+//  var player = new jiglib.JBox(null, 1, 1, 1.5);
+//  player.moveTo(new Vector3D(0, 20, 0, 0));
+//  player.set_friction(3);
+//  player.set_mass(100);
+//  physics.addBody(player);
 
   document.addEventListener('keydown', function(e) {
     activeKeys[e.which] = true;
@@ -185,12 +208,12 @@ function setupPlayer() {
 }
 
 function moveCamera() {
-  camera.position.set(player.get_x(), player.get_y(), player.get_z());
+//  camera.position.set(player.get_x(), player.get_y(), player.get_z());
   if (39 in activeKeys) { // right
     camera.rotation.y -= 0.07;
-  } else if(37 in activeKeys) { // left
+  } else if (37 in activeKeys) { // left
     camera.rotation.y += 0.07;
-  } else if((38 in activeKeys) || (40 in activeKeys)) { // forward & back
+  } else if ((38 in activeKeys) || (40 in activeKeys)) { // forward & back
     var movingForward = 38 in activeKeys;
     var movementSpeeds = movingForward ? -4 : 3
 
@@ -198,6 +221,6 @@ function moveCamera() {
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
 
-    player.setLineVelocity(new Vector3D(velocityVector.x, velocityVector.y, velocityVector.z, 0));
+//    player.setLineVelocity(new Vector3D(velocityVector.x, velocityVector.y, velocityVector.z, 0));
   }
 }
