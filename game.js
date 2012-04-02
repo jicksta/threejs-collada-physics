@@ -17,7 +17,7 @@ loadCollada("models/building.dae", 0.002, delayRenderFn(500));
 
 // Drop cubes onto the collada meshes
 for (var i = 0; i < 25; i++) {
-  setTimeout(createCubeExperiment, 500 * i);
+//  setTimeout(createCubeExperiment, 500 * i);
 }
 
 function render() {
@@ -40,7 +40,7 @@ function delayRenderFn(ms) {
 }
 
 function createCamera() {
-  var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 1, 20000);
+  var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 0.1, 20000);
   camera.position.set(-10, 1, 0);
   scene.add(camera);
   return camera;
@@ -160,6 +160,7 @@ function loadCollada(file, scale, callback) {
                 new Ammo.btVector3(0, 0, 0)
             )
         );
+        triangleMesh.setFriction(1);
         physics.addRigidBody(triangleMesh);
       }
       obj.children.forEach(recursivelyImportMeshes);
@@ -188,21 +189,25 @@ function updatePhysicalMeshes() {
 }
 
 function setupPlayer() {
-  var playerMass = 1;
+  var playerMass = 100;
   var startTransform = new Ammo.btTransform();
   startTransform.setIdentity();
   startTransform.setOrigin(new Ammo.btVector3(0, 10, 0)); // Set initial position
 
   var localInertia = new Ammo.btVector3(0, 0, 0);
 
-  var playerShape = new Ammo.btCapsuleShape(0.9, 0.7);
+  var playerHeight = 0.4;
+  var playerShape = new Ammo.btCapsuleShape(1, 0.5);
   playerShape.calculateLocalInertia(playerMass, localInertia);
 
   var motionState = new Ammo.btDefaultMotionState(startTransform);
   var rbInfo = new Ammo.btRigidBodyConstructionInfo(playerMass, motionState, playerShape, localInertia);
   var player = new Ammo.btRigidBody(rbInfo);
+  player.setFriction(1);
   player.setSleepingThresholds(0, 0);
   player.setAngularFactor(new Ammo.btVector3(0, 0, 0));
+
+  player.halfHeight = playerHeight;
   physics.addRigidBody(player);
 
   setupControls();
@@ -228,7 +233,7 @@ function moveCamera() {
   // Update position
   var origin = playerState.getOrigin();
   camera.position.x = origin.x();
-  camera.position.y = origin.y();
+  camera.position.y = origin.y() + player.halfHeight;
   camera.position.z = origin.z();
 
   if (39 in ACTIVE_KEYS) { // right
@@ -237,7 +242,7 @@ function moveCamera() {
     camera.rotation.y += 0.07;
   } else if ((38 in ACTIVE_KEYS) || (40 in ACTIVE_KEYS)) { // forward & back
     var movingForward = 38 in ACTIVE_KEYS;
-    var movementSpeeds = movingForward ? -8 : 4
+    var movementSpeeds = movingForward ? -8 : 6
     var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
