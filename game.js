@@ -3,7 +3,6 @@ var WIDTH = document.body.clientWidth,
 
 var domElement = document.getElementById("container");
 
-var clock = new THREE.Clock;
 var scene = new THREE.Scene;
 
 var camera = createCamera();
@@ -48,7 +47,6 @@ function delayRenderFn(ms) {
 function createCamera() {
   var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 1, 20000);
   camera.position.set(-10, 1, 0);
-  camera.rotation.y = -1.5;
   scene.add(camera);
   return camera;
 }
@@ -62,7 +60,7 @@ function setupPhysics() {
   ammoWorld.setGravity(new Ammo.btVector3(0, -9.8, 0));
 
 
-  var groundShape = new Ammo.btBoxShape(new Ammo.btVector3(25, 0, 25)); // Create block 50x2x50
+  var groundShape = new Ammo.btBoxShape(new Ammo.btVector3(25, 1, 25)); // Create block 50x2x50
   var groundTransform = new Ammo.btTransform();
   groundTransform.setIdentity();
   groundTransform.setOrigin(new Ammo.btVector3(0, -1, 0)); // Set initial position
@@ -94,9 +92,8 @@ function createCubeExperiment() {
       new THREE.CubeGeometry(width, height, depth),
       new THREE.MeshLambertMaterial({color: 0xFFFFFF})
   );
-  cubeMesh.useQuaternion = true;
+  cubeMesh.useQuaternion = true; // Bullet uses Quaternions
   scene.add(cubeMesh);
-
 
   var startTransform = new Ammo.btTransform();
   startTransform.setIdentity();
@@ -171,13 +168,11 @@ function updatePhysicalMeshes() {
     var origin, rotation, transform = new Ammo.btTransform();
     rigidBody.getMotionState().getWorldTransform(transform); // Retrieve box position & rotation from Ammo
 
-    // Update position
     origin = transform.getOrigin();
     rigidBody.mesh.position.x = origin.x();
     rigidBody.mesh.position.y = origin.y();
     rigidBody.mesh.position.z = origin.z();
 
-    // Update rotation
     rotation = transform.getRotation();
     rigidBody.mesh.quaternion.x = rotation.x();
     rigidBody.mesh.quaternion.y = rotation.y();
@@ -186,41 +181,62 @@ function updatePhysicalMeshes() {
   });
 }
 
-var activeKeys = {};
-
 function setupPlayer() {
-  // Create the JCapsule that will represent the player in the physics engine.
+  var playerMass = 100;
+  var startTransform = new Ammo.btTransform();
+  startTransform.setIdentity();
+  startTransform.setOrigin(new Ammo.btVector3(0, 10, 0)); // Set initial position
 
-//  var player = new jiglib.JBox(null, 1, 1, 1.5);
-//  player.moveTo(new Vector3D(0, 20, 0, 0));
-//  player.set_friction(3);
-//  player.set_mass(100);
-//  physics.addBody(player);
+  var localInertia = new Ammo.btVector3(0, 0, 0);
 
-  document.addEventListener('keydown', function(e) {
-    activeKeys[e.which] = true;
-  }, false);
-  document.addEventListener('keyup', function(e) {
-    delete activeKeys[e.which]
-  }, false);
+  var playerShape = new Ammo.btCapsuleShape(0.75, 1.5);
+  playerShape.calculateLocalInertia(playerMass, localInertia);
+
+  var motionState = new Ammo.btDefaultMotionState(startTransform);
+  var rbInfo = new Ammo.btRigidBodyConstructionInfo(playerMass, motionState, playerShape, localInertia);
+  var player = new Ammo.btRigidBody(rbInfo);
+  player.setSleepingThresholds(0, 0);
+  player.setAngularFactor(new Ammo.btVector3(0,0,0));
+  physics.addRigidBody(player);
+
+  setupControls();
 
   return player
 }
 
-function moveCamera() {
-//  camera.position.set(player.get_x(), player.get_y(), player.get_z());
-  if (39 in activeKeys) { // right
-    camera.rotation.y -= 0.07;
-  } else if (37 in activeKeys) { // left
-    camera.rotation.y += 0.07;
-  } else if ((38 in activeKeys) || (40 in activeKeys)) { // forward & back
-    var movingForward = 38 in activeKeys;
-    var movementSpeeds = movingForward ? -4 : 3
+var ACTIVE_KEYS = {};
+function setupControls() {
+  document.addEventListener('keydown', function(e) {
+    ACTIVE_KEYS[e.which] = true;
+  }, false);
+  document.addEventListener('keyup', function(e) {
+    delete ACTIVE_KEYS[e.which]
+  }, false);
+}
 
+
+function moveCamera() {
+  var playerState = new Ammo.btTransform();
+  player.getMotionState().getWorldTransform(playerState); // Retrieve box position & rotation from Ammo
+
+  // Update position
+  var origin = playerState.getOrigin();
+  camera.position.x = origin.x();
+  camera.position.y = origin.y();
+  camera.position.z = origin.z();
+
+  if (39 in ACTIVE_KEYS) { // right
+    camera.rotation.y -= 0.07;
+  } else if (37 in ACTIVE_KEYS) { // left
+    camera.rotation.y += 0.07;
+  } else if ((38 in ACTIVE_KEYS) || (40 in ACTIVE_KEYS)) { // forward & back
+    var movingForward = 38 in ACTIVE_KEYS;
+    var movementSpeeds = movingForward ? -4 : 3
     var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
 
-//    player.setLineVelocity(new Vector3D(velocityVector.x, velocityVector.y, velocityVector.z, 0));
+    player.setLinearVelocity(new Ammo.btVector3(velocityVector.x, velocityVector.y, velocityVector.z));
+    // TODO: Set the rotation of the capsule from the camera rotation?
   }
 }
