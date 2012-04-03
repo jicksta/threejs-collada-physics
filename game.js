@@ -34,18 +34,21 @@ PhysicsEngine.prototype.update = function(state) {
 
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
 
 
-var WIDTH = document.body.clientWidth,
-    HEIGHT = document.body.clientHeight;
+var VIEW_WIDTH = document.body.clientWidth,
+    VIEW_HEIGHT = document.body.clientHeight;
 
 var domElement = document.getElementById("container");
 
+var clock = new THREE.Clock;
 var scene = new THREE.Scene;
 
+var stats = createStats();
 var camera = createCamera();
-var physics = setupPhysics();
+var physics = setupPhysics(function() {
+  requestAnimationFrame(render);
+});
 
 setupLighting();
 setupControls();
@@ -56,34 +59,23 @@ loadCollada("models/building.dae", 0.002, function() {
   physics.update(viewState());
 });
 
-// Drop cubes onto the collada meshes
-for (var i = 0; i < 25; i++) {
-//  setTimeout(createCubeExperiment, 500 * i);
-}
-
 // The physics engine was created with an ontick callback that automatically calls requestAnimationFrame with render.
 function render() {
-  updatePhysicalMeshes();
   moveCamera();
   renderer.render(scene, camera);
   physics.update(viewState());
+  stats.update();
 }
 
 function createCamera() {
-  var camera = new THREE.PerspectiveCamera(camera, WIDTH / HEIGHT, 0.1, 20000);
+  var camera = new THREE.PerspectiveCamera(camera, VIEW_WIDTH / VIEW_HEIGHT, 0.1, 20000);
   camera.position.set(-10, 1, 0);
   scene.add(camera);
   return camera;
 }
 
-function setupPhysics() {
-  var engine = new PhysicsEngine({
-    ontick: function() {
-      requestAnimationFrame(render);
-    }
-  });
-  return engine;
-
+function setupPhysics(fn) {
+  return new PhysicsEngine({ontick: fn});
 }
 
 function setupLighting() {
@@ -92,39 +84,9 @@ function setupLighting() {
   scene.add(light);
 }
 
-function createCubeExperiment() {
-  var width = 1, height = 1, depth = 1;
-  var mass = width * height * depth;
-  var cubeMesh, cubePhysical;
-
-  cubeMesh = new THREE.Mesh(
-      new THREE.CubeGeometry(width, height, depth),
-      new THREE.MeshLambertMaterial({color: 0xFFFFFF})
-  );
-  cubeMesh.useQuaternion = true; // Bullet uses Quaternions
-  scene.add(cubeMesh);
-
-  var startTransform = new Ammo.btTransform();
-  startTransform.setIdentity();
-  startTransform.setOrigin(new Ammo.btVector3(0, 20, 0)); // Set initial position
-
-  var localInertia = new Ammo.btVector3(0, 0, 0);
-
-  var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));
-  boxShape.calculateLocalInertia(mass, localInertia);
-
-  var motionState = new Ammo.btDefaultMotionState(startTransform);
-  var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, boxShape, localInertia);
-  cubePhysical = new Ammo.btRigidBody(rbInfo);
-  physics.addRigidBody(cubePhysical);
-
-  cubePhysical.mesh = cubeMesh;
-  physics.rigidBodies.push(cubePhysical);
-}
-
 function createRenderer() {
   renderer = new THREE.WebGLRenderer({antialias: true});
-  renderer.setSize(WIDTH, HEIGHT);
+  renderer.setSize(VIEW_WIDTH, VIEW_HEIGHT);
   domElement.appendChild(renderer.domElement);
   return renderer;
 }
@@ -181,7 +143,10 @@ function loadCollada(file, scale, callback) {
 }
 
 function viewState() {
-  var movement = {rotation: camera.rotation.y};
+  var state = {
+    timeDelta: clock.getDelta(),
+    rotation: camera.rotation.y
+  };
 
   var left, forward, right, backward;
   if (37 in ACTIVE_KEYS) left = true;
@@ -199,29 +164,10 @@ function viewState() {
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
 
-    movement.vector = {x: velocityVector.x, y: velocityVector.y, z: velocityVector.z};
+    state.vector = {x: velocityVector.x, y: velocityVector.y, z: velocityVector.z};
   }
 
-  return movement;
-}
-
-function updatePhysicalMeshes() {
-  return;
-  physicsState.rigidBodies.forEach(function(rigidBody) {
-    var origin, rotation, transform = new Ammo.btTransform();
-    rigidBody.getMotionState().getWorldTransform(transform); // Retrieve box position & rotation from Ammo
-
-    origin = transform.getOrigin();
-    rigidBody.mesh.position.x = origin.x();
-    rigidBody.mesh.position.y = origin.y();
-    rigidBody.mesh.position.z = origin.z();
-
-    rotation = transform.getRotation();
-    rigidBody.mesh.quaternion.x = rotation.x();
-    rigidBody.mesh.quaternion.y = rotation.y();
-    rigidBody.mesh.quaternion.z = rotation.z();
-    rigidBody.mesh.quaternion.w = rotation.w();
-  });
+  return state;
 }
 
 var ACTIVE_KEYS = {};
@@ -238,4 +184,12 @@ function setupControls() {
 function moveCamera() {
   var position = physics.state.agent;
   camera.position.set(position.x, position.y, position.z);
+}
+
+function createStats() {
+  stats = new Stats();
+  stats.domElement.style.position = 'absolute';
+  stats.domElement.style.top = '0px';
+  document.body.appendChild(stats.domElement);
+  return stats;
 }

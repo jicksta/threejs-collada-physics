@@ -68,7 +68,7 @@ var AmmoWorker = {
 
   update: function(state) {
     updateAgent(state);
-    ammoWorld.stepSimulation(1 / 60, 5);
+    ammoWorld.stepSimulation(state.timeDelta, 5);
     send("tick", {agent: agentState()});
   }
 
@@ -109,3 +109,53 @@ function send(action, payload) {
 function arrayToVector(array) {
   return new Ammo.btVector3(array[0], array[1], array[2]);
 }
+
+/*
+function updatePhysicalMeshes() {
+  physicsState.rigidBodies.forEach(function(rigidBody) {
+    var origin, rotation, transform = new Ammo.btTransform();
+    rigidBody.getMotionState().getWorldTransform(transform); // Retrieve box position & rotation from Ammo
+
+    origin = transform.getOrigin();
+    rigidBody.mesh.position.x = origin.x();
+    rigidBody.mesh.position.y = origin.y();
+    rigidBody.mesh.position.z = origin.z();
+
+    rotation = transform.getRotation();
+    rigidBody.mesh.quaternion.x = rotation.x();
+    rigidBody.mesh.quaternion.y = rotation.y();
+    rigidBody.mesh.quaternion.z = rotation.z();
+    rigidBody.mesh.quaternion.w = rotation.w();
+  });
+}
+
+function createCubeExperiment() {
+  var width = 1, height = 1, depth = 1;
+  var mass = width * height * depth;
+  var cubeMesh, cubePhysical;
+
+  cubeMesh = new THREE.Mesh(
+      new THREE.CubeGeometry(width, height, depth),
+      new THREE.MeshLambertMaterial({color: 0xFFFFFF})
+  );
+  cubeMesh.useQuaternion = true; // Bullet uses Quaternions
+  scene.add(cubeMesh);
+
+  var startTransform = new Ammo.btTransform();
+  startTransform.setIdentity();
+  startTransform.setOrigin(new Ammo.btVector3(0, 20, 0)); // Set initial position
+
+  var localInertia = new Ammo.btVector3(0, 0, 0);
+
+  var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));
+  boxShape.calculateLocalInertia(mass, localInertia);
+
+  var motionState = new Ammo.btDefaultMotionState(startTransform);
+  var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, boxShape, localInertia);
+  cubePhysical = new Ammo.btRigidBody(rbInfo);
+  physics.addRigidBody(cubePhysical);
+
+  cubePhysical.mesh = cubeMesh;
+  physics.rigidBodies.push(cubePhysical);
+}
+*/
