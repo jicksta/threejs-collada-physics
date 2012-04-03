@@ -8,8 +8,6 @@ The Collada files were exported from Google Sketchup. The original .skp files ar
 the moment this importer does not support .dae files exported from a Sketchup document that has groups. You must explode
 your groups before exporting.
 
-*Note: You will notice that the collision detection and movement experiences are inadequate. This is partially due to the physics engines, partially how the physics engine is setup, and partially how slow JavaScript is. I will use this project as a way of developing the best microframework for navigating a 3D world. If you have ideas for how this can be improved, feel free to send me a message on Github.*
-
 The COLLADA meshes are loaded into the physics engine by iterating over every face in the COLLADA document and creating a non-movable triangular mesh rigid body. The standard `THREE.ColladaLoader` parses the COLLADA XML, although it should be noted that it does not fully support all of COLLADA's features yet.
 
 ![building.skp Sketchup file](https://img.skitch.com/20120330-84191a9e41kdqkjufymwupb8xs.png)

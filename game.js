@@ -1,3 +1,42 @@
+function PhysicsEngine(options) {
+  var self = this;
+
+  self.worker = new Worker("physics.js");
+  self.worker.addEventListener("message", function() {
+    self._messageReceived.apply(self, arguments);
+  });
+  self._send("init", {ammo: "/lib/ammo.36200f52b3383deba7f3a4d7f57ac5870d0e1895.js"});
+  self.state = null;
+  self.ontick = options.ontick;
+}
+
+PhysicsEngine.prototype._send = function(action, payload) {
+  this.worker.postMessage({action: action, payload: payload});
+};
+
+PhysicsEngine.prototype._messageReceived = function(e) {
+  if (e.data.action == "debug") {
+    console.debug("(WORKER)", e.data.payload);
+  } else if (e.data.action === "tick") {
+    this.state = e.data.payload;
+    if (typeof this.ontick === "function") this.ontick();
+  }
+};
+
+PhysicsEngine.prototype.buildTriangleMesh = function(triangles) {
+  this._send("buildTriangleMesh", {triangles: triangles});
+};
+
+PhysicsEngine.prototype.update = function(state) {
+  this.state = null;
+  this._send("update", state);
+};
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+
 var WIDTH = document.body.clientWidth,
     HEIGHT = document.body.clientHeight;
 
@@ -7,36 +46,27 @@ var scene = new THREE.Scene;
 
 var camera = createCamera();
 var physics = setupPhysics();
-var player = setupPlayer();
 
 setupLighting();
+setupControls();
 
 var renderer = createRenderer();
 
-loadCollada("models/building.dae", 0.002, delayRenderFn(500));
+loadCollada("models/building.dae", 0.002, function() {
+  physics.update(viewState());
+});
 
 // Drop cubes onto the collada meshes
 for (var i = 0; i < 25; i++) {
 //  setTimeout(createCubeExperiment, 500 * i);
 }
 
+// The physics engine was created with an ontick callback that automatically calls requestAnimationFrame with render.
 function render() {
-  requestAnimationFrame(render);
-  physics.stepSimulation(1 / 60, 5);
   updatePhysicalMeshes();
   moveCamera();
   renderer.render(scene, camera);
-}
-
-// This is useful for passing the returned function as a callback that will start the render loop at a certain number
-// of milliseconds in the future. This might be useful or even necessary if you depend on physics immediately.
-// Browsers tend to be briefly laggy immediately after page load while it JITs all the JavaScript. Collision
-// detection may fail during this laggy period if the lag lasts longer than the time it takes the object to fall/move
-// through another.
-function delayRenderFn(ms) {
-  return function() {
-    setTimeout(render, ms);
-  }
+  physics.update(viewState());
 }
 
 function createCamera() {
@@ -47,16 +77,13 @@ function createCamera() {
 }
 
 function setupPhysics() {
-  var collisionConfiguration = new Ammo.btDefaultCollisionConfiguration();
-  var dispatcher = new Ammo.btCollisionDispatcher(collisionConfiguration);
-  var overlappingPairCache = new Ammo.btDbvtBroadphase();
-  var solver = new Ammo.btSequentialImpulseConstraintSolver();
-  var ammoWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
-  ammoWorld.setGravity(new Ammo.btVector3(0, -9.8, 0));
+  var engine = new PhysicsEngine({
+    ontick: function() {
+      requestAnimationFrame(render);
+    }
+  });
+  return engine;
 
-  ammoWorld.rigidBodies = [];
-
-  return ammoWorld;
 }
 
 function setupLighting() {
@@ -110,68 +137,77 @@ function loadCollada(file, scale, callback) {
     collada.scene.updateMatrix();
     scene.add(collada.scene);
 
-    recursivelyImportMeshes(collada.scene);
-    function recursivelyImportMeshes(obj) {
+    recursivelyPhysicalizeMeshes(collada.scene);
+    function recursivelyPhysicalizeMeshes(obj) {
       if ("geometry" in obj) {
-
+        // We use this array to create the triangles with actual vectors instead of indices
         var physicalMeshVertices = [];
         obj.geometry.vertices.forEach(function(meshVertex) {
           // Have to find the absolute position of each vertex irrespective of their parents' transformations.
           var worldVertex = obj.matrixWorld.multiplyVector3(meshVertex.position.clone());
-          var physicalVert = new Ammo.btVector3(worldVertex.x * scale, worldVertex.y * scale, worldVertex.z * scale);
-          physicalMeshVertices.push(physicalVert);
+          var physicalVertex = [worldVertex.x * scale, worldVertex.y * scale, worldVertex.z * scale];
+          physicalMeshVertices.push(physicalVertex);
         });
 
-        var triangles = new Ammo.btTriangleMesh;
-
+        var triangles = [];
         obj.geometry.faces.forEach(function(face) {
           if (face instanceof THREE.Face3) {
-            triangles.addTriangle(
-                physicalMeshVertices[face.a],
-                physicalMeshVertices[face.b],
-                physicalMeshVertices[face.c],
-                true
-            );
+            triangles.push({
+              a: physicalMeshVertices[face.a],
+              b: physicalMeshVertices[face.b],
+              c: physicalMeshVertices[face.c]
+            });
           } else if (face instanceof THREE.Face4) {
             // Must convert a four-vertex face into two three-vertex faces.
-            triangles.addTriangle(
-                physicalMeshVertices[face.a],
-                physicalMeshVertices[face.b],
-                physicalMeshVertices[face.d],
-                true
-            );
-            triangles.addTriangle(
-                physicalMeshVertices[face.b],
-                physicalMeshVertices[face.c],
-                physicalMeshVertices[face.d],
-                true
-            );
+            triangles.push({
+              a: physicalMeshVertices[face.a],
+              b: physicalMeshVertices[face.b],
+              c: physicalMeshVertices[face.d]
+            });
+            triangles.push({
+              a: physicalMeshVertices[face.b],
+              b: physicalMeshVertices[face.c],
+              c: physicalMeshVertices[face.d]
+            });
           }
         });
-
-        var shape = new Ammo.btBvhTriangleMeshShape(triangles, true, true);
-        var transform = new Ammo.btTransform();
-        transform.setIdentity();
-        var triangleMesh = new Ammo.btRigidBody(
-            new Ammo.btRigidBodyConstructionInfo(
-                0,
-                new Ammo.btDefaultMotionState(transform),
-                shape,
-                new Ammo.btVector3(0, 0, 0)
-            )
-        );
-        triangleMesh.setFriction(1);
-        physics.addRigidBody(triangleMesh);
+        physics.buildTriangleMesh(triangles);
       }
-      obj.children.forEach(recursivelyImportMeshes);
+      obj.children.forEach(recursivelyPhysicalizeMeshes);
     }
 
     callback();
   });
 }
 
+function viewState() {
+  var movement = {rotation: camera.rotation.y};
+
+  var left, forward, right, backward;
+  if (37 in ACTIVE_KEYS) left = true;
+  if (38 in ACTIVE_KEYS) forward = true;
+  if (39 in ACTIVE_KEYS) right = true;
+  if (40 in ACTIVE_KEYS) backward = true;
+
+  if (right) {
+    camera.rotation.y -= 0.07;
+  } else if (left) {
+    camera.rotation.y += 0.07;
+  } else if (forward || backward) {
+    var movementSpeeds = forward ? -8 : 6;
+    var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
+    var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
+    cameraRotation.multiplyVector3(velocityVector);
+
+    movement.vector = {x: velocityVector.x, y: velocityVector.y, z: velocityVector.z};
+  }
+
+  return movement;
+}
+
 function updatePhysicalMeshes() {
-  physics.rigidBodies.forEach(function(rigidBody) {
+  return;
+  physicsState.rigidBodies.forEach(function(rigidBody) {
     var origin, rotation, transform = new Ammo.btTransform();
     rigidBody.getMotionState().getWorldTransform(transform); // Retrieve box position & rotation from Ammo
 
@@ -188,33 +224,6 @@ function updatePhysicalMeshes() {
   });
 }
 
-function setupPlayer() {
-  var playerMass = 100;
-  var startTransform = new Ammo.btTransform();
-  startTransform.setIdentity();
-  startTransform.setOrigin(new Ammo.btVector3(0, 10, 0)); // Set initial position
-
-  var localInertia = new Ammo.btVector3(0, 0, 0);
-
-  var playerHeight = 0.4;
-  var playerShape = new Ammo.btCapsuleShape(1, 0.5);
-  playerShape.calculateLocalInertia(playerMass, localInertia);
-
-  var motionState = new Ammo.btDefaultMotionState(startTransform);
-  var rbInfo = new Ammo.btRigidBodyConstructionInfo(playerMass, motionState, playerShape, localInertia);
-  var player = new Ammo.btRigidBody(rbInfo);
-  player.setFriction(1);
-  player.setSleepingThresholds(0, 0);
-  player.setAngularFactor(new Ammo.btVector3(0, 0, 0));
-
-  player.halfHeight = playerHeight;
-  physics.addRigidBody(player);
-
-  setupControls();
-
-  return player
-}
-
 var ACTIVE_KEYS = {};
 function setupControls() {
   document.addEventListener('keydown', function(e) {
@@ -227,28 +236,6 @@ function setupControls() {
 
 
 function moveCamera() {
-  var playerState = new Ammo.btTransform();
-  player.getMotionState().getWorldTransform(playerState); // Retrieve box position & rotation from Ammo
-
-  // Update position
-  var origin = playerState.getOrigin();
-  camera.position.x = origin.x();
-  camera.position.y = origin.y() + player.halfHeight;
-  camera.position.z = origin.z();
-
-  if (39 in ACTIVE_KEYS) { // right
-    camera.rotation.y -= 0.07;
-  } else if (37 in ACTIVE_KEYS) { // left
-    camera.rotation.y += 0.07;
-  } else if ((38 in ACTIVE_KEYS) || (40 in ACTIVE_KEYS)) { // forward & back
-    var movingForward = 38 in ACTIVE_KEYS;
-    var movementSpeeds = movingForward ? -8 : 6
-    var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
-    var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
-    cameraRotation.multiplyVector3(velocityVector);
-
-    var yLinearVelocity = player.getLinearVelocity().y();
-    player.setLinearVelocity(new Ammo.btVector3(velocityVector.x, yLinearVelocity, velocityVector.z));
-    // TODO: Set the rotation of the capsule from the camera rotation?
-  }
+  var position = physics.state.agent;
+  camera.position.set(position.x, position.y, position.z);
 }
