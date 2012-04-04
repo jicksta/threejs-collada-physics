@@ -1,17 +1,15 @@
-This is a basic demo showing how to integrate a [ThreeJS](https://github.com/mrdoob/three.js/) WebGL scene loaded from a [Collada](http://en.wikipedia.org/wiki/COLLADA) (.dae) file with the [Ammo.js](https://github.com/kripken/ammo.js) physics engine. The physics engine is used for collision detection and falling physics. The goal of this project is to create an efficient first-person 3D environment the user can walk around in.
-
-There is also a branch showing how to do this with [jiglibjs2](https://github.com/bartdeboer/JigLibJS2) [here](https://github.com/jicksta/threejs-collada-physics/tree/jiglibjs2) and one using [Physijs](https://github.com/chandlerprall/Physijs) located [here](https://github.com/jicksta/threejs-collada-physics/tree/physijs). At the moment the Physijs branch has no-clipping player movement.
+This is a basic game engine showing how to integrate a [ThreeJS](https://github.com/mrdoob/three.js/) WebGL scene loaded from a [Collada](http://en.wikipedia.org/wiki/COLLADA) (.dae) file. The environment has robust collision detection and physics thanks to the [Ammo.js](https://github.com/kripken/ammo.js) physics engine, a port of the C++ Bullet engine. The goal of this project is to create an efficient late-90s era first-person 3D game engine the user can walk around in.
 
 Don't forget to do `git submodule update --init` to initialize the submodule if you clone this branch.
 
-The Collada files were exported from Google Sketchup. The original .skp files are located in `models/sketchup`. Note: At
-the moment this importer does not support .dae files exported from a Sketchup document that has groups. You must explode
+The Collada files were exported from Google SketchUp. The original .skp files are located in `models/sketchup`. Note: At
+the moment this importer does not support .dae files exported from a SketchUp document that has groups. You must explode
 your groups before exporting.
 
 The COLLADA meshes are loaded into the physics engine by iterating over every face in the COLLADA document and creating a non-movable triangular mesh rigid body. The standard `THREE.ColladaLoader` parses the COLLADA XML, although it should be noted that it does not fully support all of COLLADA's features yet.
 
-![building.skp Sketchup file](https://img.skitch.com/20120330-84191a9e41kdqkjufymwupb8xs.png)
-![building.dae in WebGL](https://img.skitch.com/20120330-dr71et6cedhpb11e9akbrdhify.png)
+![Map from SketchUp file](https://img.skitch.com/20120404-eprjfyk87jfdpjj1kem2rqtqwp.png)
+![Map rendered with WebGL](https://img.skitch.com/20120404-kw2pb5p99578e4hqa1nq294uga.png)
 
 All files excluding those in the `lib/` directory are licensed under the MIT License.
 

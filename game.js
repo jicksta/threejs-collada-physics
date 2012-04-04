@@ -42,7 +42,7 @@ var VIEW_WIDTH = document.body.clientWidth,
 var domElement = document.getElementById("container");
 
 var clock = new THREE.Clock;
-var scene = new THREE.Scene;
+var scene = createScene();
 
 var stats = createStats();
 var camera = createCamera();
@@ -55,7 +55,7 @@ setupControls();
 
 var renderer = createRenderer();
 
-loadCollada("models/building.dae", 0.002, function() {
+loadCollada("models/bigmap.dae", 4, function() {
   physics.update(viewState());
 });
 
@@ -67,9 +67,15 @@ function render() {
   stats.update();
 }
 
+function createScene() {
+  var scene = new THREE.Scene;
+  scene.fog = new THREE.FogExp2(0xaaaaaa, 0.00055);
+  return scene;
+}
+
 function createCamera() {
   var camera = new THREE.PerspectiveCamera(camera, VIEW_WIDTH / VIEW_HEIGHT, 0.1, 20000);
-  camera.position.set(-10, 1, 0);
+  camera.position.set(0, 1, 0);
   scene.add(camera);
   return camera;
 }
@@ -79,8 +85,8 @@ function setupPhysics(fn) {
 }
 
 function setupLighting() {
-  var ambientLight = new THREE.PointLight(0xFFFFFF, 1, 75);
-  ambientLight.position.y = 7;
+  var ambientLight = new THREE.PointLight(0xFFFFFF, 1, 25000);
+  ambientLight.position.y = 5;
   scene.add(ambientLight);
 }
 
@@ -159,7 +165,7 @@ function viewState() {
   } else if (left) {
     camera.rotation.y += 0.07;
   } else if (forward || backward) {
-    var movementSpeeds = forward ? -8 : 6;
+    var movementSpeeds = forward ? -12 : 10;
     var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);

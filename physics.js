@@ -26,7 +26,7 @@ var AmmoWorker = {
     var agentMass = 100;
     var startTransform = new Ammo.btTransform();
     startTransform.setIdentity();
-    startTransform.setOrigin(new Ammo.btVector3(0, 10, 0)); // Set initial position
+    startTransform.setOrigin(new Ammo.btVector3(0, 20, 0)); // Set initial position
 
     var localInertia = new Ammo.btVector3(0, 0, 0);
 
