@@ -79,9 +79,9 @@ function setupPhysics(fn) {
 }
 
 function setupLighting() {
-  var light = new THREE.PointLight(0x0020BB, 10, 50);
-  light.position.set(5, 5, 5);
-  scene.add(light);
+  var ambientLight = new THREE.PointLight(0xFFFFFF, 1, 75);
+  ambientLight.position.y = 7;
+  scene.add(ambientLight);
 }
 
 function createRenderer() {
