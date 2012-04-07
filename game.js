@@ -165,7 +165,8 @@ function viewState() {
   } else if (left) {
     camera.rotation.y += 0.07;
   } else if (forward || backward) {
-    var movementSpeeds = forward ? -12 : 10;
+    // var movementSpeeds = forward ? -12 : 10;
+    var movementSpeeds = forward ? -62 : 10;
     var cameraRotation = new THREE.Matrix4().extractRotation(camera.matrixWorld);
     var velocityVector = new THREE.Vector3(0, 0, movementSpeeds);
     cameraRotation.multiplyVector3(velocityVector);
